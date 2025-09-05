@@ -1,0 +1,325 @@
+-- SafyreHub - Westbound Script com Wind UI
+-- By KingScripts01 | TikTok: @loofcwk
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+-- Carregar Wind UI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- Criar janela principal
+local Window = WindUI:CreateWindow({
+    Name = "SafyreHub - Westbound",
+    Theme = {
+        Background = Color3.fromRGB(25, 25, 35),
+        Accent = Color3.fromRGB(138, 43, 226),
+        Text = Color3.fromRGB(255, 255, 255)
+    }
+})
+
+-- Notificação de boas-vindas
+WindUI:Notify({
+    Title = "SafyreHub Carregado",
+    Description = "Westbound Edition - Por KingScripts01",
+    Duration = 5
+})
+
+-- Criar abas
+local CombatTab = Window:CreateTab("Combat")
+local VisualTab = Window:CreateTab("Visual")
+local PlayerTab = Window:CreateTab("Player")
+local VehicleTab = Window:CreateTab("Vehicle")
+local CreditsTab = Window:CreateTab("Credits")
+
+-------------------- VARIÁVEIS GLOBAIS --------------------
+local aimbotActive = false
+local espActive = false
+local noclipActive = false
+local speedActive = false
+local infStaminaActive = false
+
+-------------------- FUNÇÕES UTILITÁRIAS --------------------
+local function IsAlive(player)
+    return player and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+end
+
+local function GetPlayerTeam(player)
+    if player:FindFirstChild("Backpack") then
+        for _, item in pairs(player.Backpack:GetChildren()) do
+            if item.Name:find("Police") or item.Name:find("Sheriff") then
+                return "Law"
+            elseif item.Name:find("Bandit") or item.Name:find("Outlaw") then
+                return "Outlaw"
+            end
+        end
+    end
+    return "Civil"
+end
+
+-------------------- ABA COMBATE --------------------
+local CombatSection = CombatTab:CreateSection("Configurações de Combate")
+
+CombatSection:AddToggle("Ativar Aimbot", {
+    Default = false,
+    Callback = function(state)
+        aimbotActive = state
+        WindUI:Notify({
+            Title = "Aimbot",
+            Description = state and "Ativado - Clique direito para mirar" or "Desativado",
+            Duration = 3
+        })
+    end
+})
+
+CombatSection:AddSlider("Suavidade", {
+    Min = 1,
+    Max = 100,
+    Default = 50,
+    Callback = function(value)
+        _G.AimbotSmoothness = value / 100
+        WindUI:Notify({
+            Title = "Aimbot",
+            Description = "Suavidade: " .. value .. "%",
+            Duration = 2
+        })
+    end
+})
+
+CombatSection:AddSlider("Campo de Visão", {
+    Min = 10,
+    Max = 500,
+    Default = 100,
+    Callback = function(value)
+        _G.AimbotFOV = value
+        WindUI:Notify({
+            Title = "Aimbot",
+            Description = "FOV: " .. value,
+            Duration = 2
+        })
+    end
+})
+
+CombatSection:AddToggle("Trigger Bot", {
+    Default = false,
+    Callback = function(state)
+        _G.TriggerBot = state
+        WindUI:Notify({
+            Title = "Trigger Bot",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+CombatSection:AddSlider("Delay do Trigger", {
+    Min = 0,
+    Max = 500,
+    Default = 100,
+    Callback = function(value)
+        _G.TriggerDelay = value
+        WindUI:Notify({
+            Title = "Trigger",
+            Description = "Delay: " .. value .. "ms",
+            Duration = 2
+        })
+    end
+})
+
+-------------------- ABA VISUAL --------------------
+local VisualSection = VisualTab:CreateSection("Configurações Visuais")
+
+VisualSection:AddToggle("ESP de Jogadores", {
+    Default = false,
+    Callback = function(state)
+        espActive = state
+        if state then
+            CreateESP()
+            WindUI:Notify({
+                Title = "ESP",
+                Description = "ESP ativado",
+                Duration = 2
+            })
+        else
+            ClearESP()
+            WindUI:Notify({
+                Title = "ESP",
+                Description = "ESP desativado",
+                Duration = 2
+            })
+        end
+    end
+})
+
+VisualSection:AddToggle("ESP de Veículos", {
+    Default = false,
+    Callback = function(state)
+        _G.VehicleESP = state
+        WindUI:Notify({
+            Title = "Vehicle ESP",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+VisualSection:AddToggle("ESP de Itens", {
+    Default = false,
+    Callback = function(state)
+        _G.ItemESP = state
+        WindUI:Notify({
+            Title = "Item ESP",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+-------------------- ABA PLAYER --------------------
+local PlayerSection = PlayerTab:CreateSection("Modificações do Player")
+
+PlayerSection:AddToggle("Speed Hack", {
+    Default = false,
+    Callback = function(state)
+        speedActive = state
+        if state then
+            WindUI:Notify({
+                Title = "Speed",
+                Description = "Speed hack ativado",
+                Duration = 2
+            })
+        else
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+PlayerSection:AddSlider("Velocidade", {
+    Min = 16,
+    Max = 100,
+    Default = 50,
+    Callback = function(value)
+        _G.WalkSpeed = value
+        if speedActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = value
+        end
+        WindUI:Notify({
+            Title = "Speed",
+            Description = "Velocidade: " .. value,
+            Duration = 2
+        })
+    end
+})
+
+PlayerSection:AddToggle("Stamina Infinita", {
+    Default = false,
+    Callback = function(state)
+        infStaminaActive = state
+        WindUI:Notify({
+            Title = "Stamina",
+            Description = state and "Stamina infinita ativada" or "Stamina infinita desativada",
+            Duration = 2
+        })
+    end
+})
+
+PlayerSection:AddToggle("No Clip", {
+    Default = false,
+    Callback = function(state)
+        noclipActive = state
+        WindUI:Notify({
+            Title = "No Clip",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+PlayerSection:AddToggle("Munição Infinita", {
+    Default = false,
+    Callback = function(state)
+        _G.InfiniteAmmo = state
+        WindUI:Notify({
+            Title = "Munição",
+            Description = state and "Munição infinita ativada" or "Munição infinita desativada",
+            Duration = 2
+        })
+    end
+})
+
+PlayerSection:AddToggle("Sem Recoil", {
+    Default = false,
+    Callback = function(state)
+        _G.NoRecoil = state
+        WindUI:Notify({
+            Title = "Recoil",
+            Description = state and "Recoil removido" or "Recoil normal",
+            Duration = 2
+        })
+    end
+})
+
+-------------------- ABA VEÍCULOS --------------------
+local VehicleSection = VehicleTab:CreateSection("Modificações de Veículos")
+
+VehicleSection:AddToggle("Velocidade de Veículo", {
+    Default = false,
+    Callback = function(state)
+        _G.VehicleSpeed = state
+        WindUI:Notify({
+            Title = "Vehicle Speed",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+VehicleSection:AddSlider("Velocidade do Veículo", {
+    Min = 50,
+    Max = 500,
+    Default = 150,
+    Callback = function(value)
+        _G.VehicleSpeedValue = value
+        WindUI:Notify({
+            Title = "Vehicle Speed",
+            Description = "Velocidade: " .. value,
+            Duration = 2
+        })
+    end
+})
+
+VehicleSection:AddToggle("Combustível Infinito", {
+    Default = false,
+    Callback = function(state)
+        _G.InfiniteFuel = state
+        WindUI:Notify({
+            Title = "Fuel",
+            Description = state and "Combustível infinito ativado" or "Combustível infinito desativado",
+            Duration = 2
+        })
+    end
+})
+
+VehicleSection:AddToggle("Modo Deus do Veículo", {
+    Default = false,
+    Callback = function(state)
+        _G.VehicleGodMode = state
+        WindUI:Notify({
+            Title = "Vehicle God Mode",
+            Description = state and "Ativado" or "Desativado",
+            Duration = 2
+        })
+    end
+})
+
+-------------------- ABA CRÉDITOS --------------------
+local CreditsSection = CreditsTab:CreateSection("Informações")
+
+CreditsSection:AddLabel("SafyreHub v2.0")
+CreditsSection:AddLabel("Westbound Edition")
+CreditsSection:AddLabel("Criado por KingScripts01")
+CreditsSection:AddLabel("TikTok: @loofcwk
