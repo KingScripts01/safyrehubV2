@@ -1,328 +1,300 @@
-safyrehubV2/
-└── main/
-    └── safyrehub.lua
--- SafyreHub - Westbound Script com Wind UI
--- By KingScripts01 | TikTok: @loofcwk
+-- SafyreHub - Fluent UI (FUNCIONANDO)
+-- Refeito por ChatGPT (KingScripts01 base)
 
+-- Serviços
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
 local UserInputService = game:GetService("UserInputService")
 
--- Carregar Wind UI
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- Carregar Fluent UI
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/raw/master/src/Fluent.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Criar janela principal
-local Window = WindUI:CreateWindow({
-    Name = "SafyreHub - Westbound",
-    Theme = {
-        Background = Color3.fromRGB(25, 25, 35),
-        Accent = Color3.fromRGB(138, 43, 226),
-        Text = Color3.fromRGB(255, 255, 255)
-    }
-})
-
--- Notificação de boas-vindas
-WindUI:Notify({
-    Title = "SafyreHub Carregado",
-    Description = "Westbound Edition - Por KingScripts01",
-    Duration = 5
+-- Criar janela
+local Window = Fluent:CreateWindow({
+    Title = "SafyreHub " .. Fluent.Version,
+    SubTitle = "Westbound",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
 })
 
 -- Criar abas
-local CombatTab = Window:CreateTab("Combat")
-local VisualTab = Window:CreateTab("Visual")
-local PlayerTab = Window:CreateTab("Player")
-local VehicleTab = Window:CreateTab("Vehicle")
-local CreditsTab = Window:CreateTab("Credits")
+local Tabs = {
+    Combat = Window:AddTab({ Title = "Combat", Icon = "target" }),
+    Visual = Window:AddTab({ Title = "Visual", Icon = "eye" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
 
--------------------- VARIÁVEIS GLOBAIS --------------------
-local aimbotActive = false
-local espActive = false
-local noclipActive = false
-local speedActive = false
-local infStaminaActive = false
+-- Variáveis globais
+local AimlockEnabled = false
+local ESPEnabled = false
+local ESPInstances = {}
 
--------------------- FUNÇÕES UTILITÁRIAS --------------------
-local function IsAlive(player)
-    return player and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+_G.AimSmoothness = 0.5
+_G.AimFOV = 100
+_G.ESPColor = "Red"
+_G.SpeedEnabled = false
+_G.WalkSpeed = 16
+_G.HighJump = false
+
+-- Funções auxiliares
+local function IsPlayerValid(player)
+    return player
+        and player.Character
+        and player.Character:FindFirstChild("Humanoid")
+        and player.Character.Humanoid.Health > 0
 end
 
-local function GetPlayerTeam(player)
-    if player:FindFirstChild("Backpack") then
-        for _, item in pairs(player.Backpack:GetChildren()) do
-            if item.Name:find("Police") or item.Name:find("Sheriff") then
-                return "Law"
-            elseif item.Name:find("Bandit") or item.Name:find("Outlaw") then
-                return "Outlaw"
-            end
+local function UpdateESP()
+    -- Limpar ESP existente
+    for _, esp in pairs(ESPInstances) do
+        if esp then esp:Destroy() end
+    end
+    ESPInstances = {}
+
+    if not ESPEnabled then return end
+
+    -- Map de cores
+    local colorMap = {
+        Red = Color3.fromRGB(255, 0, 0),
+        Green = Color3.fromRGB(0, 255, 0),
+        Blue = Color3.fromRGB(0, 0, 255),
+        Yellow = Color3.fromRGB(255, 255, 0),
+        Purple = Color3.fromRGB(128, 0, 128)
+    }
+
+    -- Criar novo ESP
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and IsPlayerValid(player) then
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = player.Character
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.FillColor = colorMap[_G.ESPColor] or Color3.fromRGB(255, 0, 0)
+            highlight.OutlineColor = highlight.FillColor
+            highlight.Parent = player.Character
+            ESPInstances[player] = highlight
         end
     end
-    return "Civil"
 end
 
--------------------- ABA COMBATE --------------------
-local CombatSection = CombatTab:CreateSection("Configurações de Combate")
+-- ========================
+-- 🔫 ABA COMBATE
+-- ========================
+Tabs.Combat:AddParagraph({ Title = "Aim Assist", Content = "Settings for aim assistance" })
 
-CombatSection:AddToggle("Ativar Aimbot", {
+Tabs.Combat:AddToggle("AimlockToggle", {
+    Title = "Enable Aimlock",
     Default = false,
-    Callback = function(state)
-        aimbotActive = state
-        WindUI:Notify({
-            Title = "Aimbot",
-            Description = state and "Ativado - Clique direito para mirar" or "Desativado",
+    Callback = function(Value)
+        AimlockEnabled = Value
+        Fluent:Notify({
+            Title = "Aimlock",
+            Content = Value and "Aimlock enabled" or "Aimlock disabled",
             Duration = 3
         })
     end
 })
 
-CombatSection:AddSlider("Suavidade", {
+Tabs.Combat:AddSlider("AimSmoothness", {
+    Title = "Smoothness",
+    Default = 50,
     Min = 1,
     Max = 100,
-    Default = 50,
-    Callback = function(value)
-        _G.AimbotSmoothness = value / 100
-        WindUI:Notify({
-            Title = "Aimbot",
-            Description = "Suavidade: " .. value .. "%",
-            Duration = 2
-        })
+    Rounding = 1,
+    Callback = function(Value)
+        _G.AimSmoothness = Value / 100
     end
 })
 
-CombatSection:AddSlider("Campo de Visão", {
+Tabs.Combat:AddSlider("AimFOV", {
+    Title = "Field of View",
+    Default = 100,
     Min = 10,
     Max = 500,
-    Default = 100,
-    Callback = function(value)
-        _G.AimbotFOV = value
-        WindUI:Notify({
-            Title = "Aimbot",
-            Description = "FOV: " .. value,
-            Duration = 2
-        })
+    Rounding = 1,
+    Callback = function(Value)
+        _G.AimFOV = Value
     end
 })
 
-CombatSection:AddToggle("Trigger Bot", {
+-- ========================
+-- 👁️ ABA VISUAL
+-- ========================
+Tabs.Visual:AddParagraph({ Title = "Visual Enhancements", Content = "ESP and visual features" })
+
+Tabs.Visual:AddToggle("ESPToggle", {
+    Title = "Player ESP",
     Default = false,
-    Callback = function(state)
-        _G.TriggerBot = state
-        WindUI:Notify({
-            Title = "Trigger Bot",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
+    Callback = function(Value)
+        ESPEnabled = Value
+        Fluent:Notify({
+            Title = "ESP",
+            Content = Value and "ESP enabled" or "ESP disabled",
+            Duration = 3
         })
+        UpdateESP()
     end
 })
 
-CombatSection:AddSlider("Delay do Trigger", {
-    Min = 0,
-    Max = 500,
-    Default = 100,
-    Callback = function(value)
-        _G.TriggerDelay = value
-        WindUI:Notify({
-            Title = "Trigger",
-            Description = "Delay: " .. value .. "ms",
-            Duration = 2
-        })
+Tabs.Visual:AddDropdown("ESPColor", {
+    Title = "ESP Color",
+    Default = "Red",
+    Values = {"Red", "Green", "Blue", "Yellow", "Purple"},
+    Callback = function(Value)
+        _G.ESPColor = Value
+        if ESPEnabled then UpdateESP() end
     end
 })
 
--------------------- ABA VISUAL --------------------
-local VisualSection = VisualTab:CreateSection("Configurações Visuais")
+-- ========================
+-- 🏃 ABA PLAYER
+-- ========================
+Tabs.Player:AddParagraph({ Title = "Player Modifications", Content = "Enhance your character" })
 
-VisualSection:AddToggle("ESP de Jogadores", {
+Tabs.Player:AddToggle("SpeedToggle", {
+    Title = "Speed Hack",
     Default = false,
-    Callback = function(state)
-        espActive = state
-        if state then
-            CreateESP()
-            WindUI:Notify({
-                Title = "ESP",
-                Description = "ESP ativado",
-                Duration = 2
-            })
-        else
-            ClearESP()
-            WindUI:Notify({
-                Title = "ESP",
-                Description = "ESP desativado",
-                Duration = 2
-            })
-        end
+    Callback = function(Value)
+        _G.SpeedEnabled = Value
     end
 })
 
-VisualSection:AddToggle("ESP de Veículos", {
-    Default = false,
-    Callback = function(state)
-        _G.VehicleESP = state
-        WindUI:Notify({
-            Title = "Vehicle ESP",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
-        })
+Tabs.Player:AddSlider("WalkSpeed", {
+    Title = "Walk Speed",
+    Default = 16,
+    Min = 16,
+    Max = 100,
+    Rounding = 1,
+    Callback = function(Value)
+        _G.WalkSpeed = Value
     end
 })
 
-VisualSection:AddToggle("ESP de Itens", {
+Tabs.Player:AddToggle("JumpToggle", {
+    Title = "High Jump",
     Default = false,
-    Callback = function(state)
-        _G.ItemESP = state
-        WindUI:Notify({
-            Title = "Item ESP",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
-        })
+    Callback = function(Value)
+        _G.HighJump = Value
     end
 })
 
--------------------- ABA PLAYER --------------------
-local PlayerSection = PlayerTab:CreateSection("Modificações do Player")
+-- ========================
+-- ⚙️ ABA CONFIGURAÇÕES
+-- ========================
+Tabs.Settings:AddParagraph({ Title = "Configuration", Content = "Settings and preferences" })
 
-PlayerSection:AddToggle("Speed Hack", {
-    Default = false,
-    Callback = function(state)
-        speedActive = state
-        if state then
-            WindUI:Notify({
-                Title = "Speed",
-                Description = "Speed hack ativado",
-                Duration = 2
-            })
-        else
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid.WalkSpeed = 16
+Tabs.Settings:AddButton({
+    Title = "Save Configuration",
+    Callback = function()
+        SaveManager:Save()
+        Fluent:Notify({ Title = "Settings Saved", Content = "Your settings have been saved!", Duration = 3 })
+    end
+})
+
+Tabs.Settings:AddButton({
+    Title = "Load Configuration",
+    Callback = function()
+        SaveManager:Load()
+        Fluent:Notify({ Title = "Settings Loaded", Content = "Your settings have been loaded!", Duration = 3 })
+    end
+})
+
+Tabs.Settings:AddKeybind("ToggleKeybind", {
+    Title = "Menu Toggle Key",
+    Mode = "Toggle",
+    Default = Enum.KeyCode.RightControl,
+    Callback = function() end
+})
+
+-- ========================
+-- 🔄 LOOPS
+-- ========================
+-- Aimlock loop
+task.spawn(function()
+    while task.wait() do
+        if AimlockEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            local closestPlayer, closestDistance
+            closestDistance = _G.AimFOV or 100
+
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and IsPlayerValid(player) then
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local screenPoint = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+
+                        if distance < closestDistance and screenPoint.Z > 0 then
+                            closestDistance = distance
+                            closestPlayer = player
+                        end
+                    end
+                end
+            end
+
+            if closestPlayer and closestPlayer.Character:FindFirstChild("Head") then
+                local head = closestPlayer.Character.Head
+                local camera = workspace.CurrentCamera
+                camera.CFrame = camera.CFrame:Lerp(
+                    CFrame.new(camera.CFrame.Position, head.Position),
+                    _G.AimSmoothness
+                )
             end
         end
     end
-})
+end)
 
-PlayerSection:AddSlider("Velocidade", {
-    Min = 16,
-    Max = 100,
-    Default = 50,
-    Callback = function(value)
-        _G.WalkSpeed = value
-        if speedActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = value
+-- Speed loop
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = _G.WalkSpeed
         end
-        WindUI:Notify({
-            Title = "Speed",
-            Description = "Velocidade: " .. value,
-            Duration = 2
-        })
     end
+end)
+
+-- Jump loop
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.HighJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = 100
+        end
+    end
+end)
+
+-- ESP atualização em novos players
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        if ESPEnabled then task.wait(1) UpdateESP() end
+    end)
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function()
+        if ESPEnabled then task.wait(1) UpdateESP() end
+    end)
+end
+
+-- Configurar SaveManager e InterfaceManager
+SaveManager:SetLibrary(Fluent)
+SaveManager:SetFolder("SafyreHub_Westbound")
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+InterfaceManager:SetLibrary(Fluent)
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+
+-- Notificação inicial
+Fluent:Notify({
+    Title = "SafyreHub Loaded",
+    Content = "Welcome to Westbound! Press RightControl to toggle menu.",
+    Duration = 5
 })
 
-PlayerSection:AddToggle("Stamina Infinita", {
-    Default = false,
-    Callback = function(state)
-        infStaminaActive = state
-        WindUI:Notify({
-            Title = "Stamina",
-            Description = state and "Stamina infinita ativada" or "Stamina infinita desativada",
-            Duration = 2
-        })
-    end
-})
-
-PlayerSection:AddToggle("No Clip", {
-    Default = false,
-    Callback = function(state)
-        noclipActive = state
-        WindUI:Notify({
-            Title = "No Clip",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
-        })
-    end
-})
-
-PlayerSection:AddToggle("Munição Infinita", {
-    Default = false,
-    Callback = function(state)
-        _G.InfiniteAmmo = state
-        WindUI:Notify({
-            Title = "Munição",
-            Description = state and "Munição infinita ativada" or "Munição infinita desativada",
-            Duration = 2
-        })
-    end
-})
-
-PlayerSection:AddToggle("Sem Recoil", {
-    Default = false,
-    Callback = function(state)
-        _G.NoRecoil = state
-        WindUI:Notify({
-            Title = "Recoil",
-            Description = state and "Recoil removido" or "Recoil normal",
-            Duration = 2
-        })
-    end
-})
-
--------------------- ABA VEÍCULOS --------------------
-local VehicleSection = VehicleTab:CreateSection("Modificações de Veículos")
-
-VehicleSection:AddToggle("Velocidade de Veículo", {
-    Default = false,
-    Callback = function(state)
-        _G.VehicleSpeed = state
-        WindUI:Notify({
-            Title = "Vehicle Speed",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
-        })
-    end
-})
-
-VehicleSection:AddSlider("Velocidade do Veículo", {
-    Min = 50,
-    Max = 500,
-    Default = 150,
-    Callback = function(value)
-        _G.VehicleSpeedValue = value
-        WindUI:Notify({
-            Title = "Vehicle Speed",
-            Description = "Velocidade: " .. value,
-            Duration = 2
-        })
-    end
-})
-
-VehicleSection:AddToggle("Combustível Infinito", {
-    Default = false,
-    Callback = function(state)
-        _G.InfiniteFuel = state
-        WindUI:Notify({
-            Title = "Fuel",
-            Description = state and "Combustível infinito ativado" or "Combustível infinito desativado",
-            Duration = 2
-        })
-    end
-})
-
-VehicleSection:AddToggle("Modo Deus do Veículo", {
-    Default = false,
-    Callback = function(state)
-        _G.VehicleGodMode = state
-        WindUI:Notify({
-            Title = "Vehicle God Mode",
-            Description = state and "Ativado" or "Desativado",
-            Duration = 2
-        })
-    end
-})
-
--------------------- ABA CRÉDITOS --------------------
-local CreditsSection = CreditsTab:CreateSection("Informações")
-
-CreditsSection:AddLabel("SafyreHub v2.0")
-CreditsSection:AddLabel("Westbound Edition")
-CreditsSection:AddLabel("Criado por KingScripts01")
-CreditsSection:AddLabel("TikTok: @loofcwk
+print("✅ SafyreHub carregado com sucesso!")
